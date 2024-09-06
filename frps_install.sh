@@ -18,7 +18,7 @@ else
 fi
 
 # 第二行添加 'auth.token = "mc.apohs.org"'
-sed -i '2i auth.token = "mc.apohs.org"' /opt/frp/frps.toml
+sed -i '2s/^/auth.token = "mc.apohs.org"\n/' /opt/frp/frps.toml
 
 # 使用 systemd 管理 frps
 cat > /etc/systemd/system/frps.service << EOF
