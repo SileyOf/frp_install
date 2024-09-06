@@ -1,56 +1,47 @@
 #!/bin/bash
 
-# 变量定义
-FRP_VERSION="0.60.0"
-FRP_URL="https://github.com/fatedier/frp/releases/download/v${FRP_VERSION}/frp_${FRP_VERSION}_linux_amd64.tar.gz"
-FRP_DIR="/opt/frp_${FRP_VERSION}"
-CONFIG_FILE="${FRP_DIR}/frps.toml"
+# 下载并安装 frps
+wget https://github.com/fatedier/frp/releases/download/v0.60.0/frp_0.60.0_linux_amd64.tar.gz || { echo "下载失败"; exit 1; }
+tar -xf frp_0.60.0_linux_amd64.tar.gz || { echo "解压失败"; exit 1; }
 
-# 更新系统并安装必要工具
-echo "更新系统并安装必要工具..."
-sudo apt-get update -y && sudo apt-get install wget tar -y
+# 创建目录并复制文件
+mkdir -p /opt/frp
+cp frp_0.60.0_linux_amd64/frps /opt/frp/frps
+cp frp_0.60.0_linux_amd64/frps.toml /opt/frp/frps.toml
+chmod +x /opt/frp/frps
 
-# 下载并解压FRP
-echo "下载FRP ${FRP_VERSION}..."
-wget -qO- ${FRP_URL} | sudo tar -xz -C /opt
+# 修改配置文件：确保 bindPort 行存在并修改为 7000
+if grep -q '^bindPort' /opt/frp/frps.toml; then
+  sed -i 's/^bindPort.*/bindPort = 7000/' /opt/frp/frps.toml
+else
+  echo "bindPort = 7000" >> /opt/frp/frps.toml
+fi
 
-# 移动并重命名文件夹
-sudo mv /opt/frp_${FRP_VERSION}_linux_amd64 ${FRP_DIR}
+# 第二行添加 'auth.token = "mc.apohs.org"'
+sed -i '2i auth.token = "mc.apohs.org"' /opt/frp/frps.toml
 
-# 配置frps.toml
-echo "配置 frps.toml..."
-sudo tee ${CONFIG_FILE} > /dev/null <<EOL
-[common]
-bind_port = 7000
-auth.token = "mc.apohs.org"
-EOL
-
-# 创建服务文件
-echo "创建 systemd 服务文件..."
-sudo tee /etc/systemd/system/frps.service > /dev/null <<EOL
+# 使用 systemd 管理 frps
+cat > /etc/systemd/system/frps.service << EOF
 [Unit]
-Description=FRP Server Service
+Description=frps service
 After=network.target
 
 [Service]
 Type=simple
-User=root
-ExecStart=${FRP_DIR}/frps -c ${CONFIG_FILE}
+ExecStart=/opt/frp/frps -c /opt/frp/frps.toml
 Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
-EOL
+EOF
 
-# 重新加载systemd并启动frps服务
-echo "启动并启用 FRP 服务..."
-sudo systemctl daemon-reload
-sudo systemctl enable frps
-sudo systemctl start frps
+# 启动服务
+systemctl daemon-reload
+systemctl enable frps
+systemctl start frps
 
-# 检查服务状态
-echo "FRP 服务状态："
-sudo systemctl status frps --no-pager
-
-echo "FRP 安装和配置完成。"
-
+# 等待并确认
+sleep 5
+echo "frps 安装完成"
+echo "frps 启动完成"
